@@ -1,53 +1,96 @@
 import streamlit as st
-from openai import OpenAI
+import pandas as pd
+import openpyxl
+import requests
 
-# Show title and description.
-st.title("📄 Document question answering")
-st.write(
-    "Upload a document below and ask a question about it – GPT will answer! "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
+st.title("数据分析Demo")
+
+# 上传Excel文件
+uploaded_file = st.file_uploader(
+    "上传Excel文件", type=("xlsx")
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# 提出你的数据分析要求
+question = st.text_area(
+    "提出你的数据分析要求",
+    placeholder="提出你的数据分析要求",
+    disabled=not uploaded_file,
+)
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
 
-    # Let the user upload a file via `st.file_uploader`.
-    uploaded_file = st.file_uploader(
-        "Upload a document (.txt or .md)", type=("txt", "md")
-    )
 
-    # Ask the user for a question via `st.text_area`.
-    question = st.text_area(
-        "Now ask a question about the document!",
-        placeholder="Can you give me a short summary?",
-        disabled=not uploaded_file,
-    )
 
-    if uploaded_file and question:
+if uploaded_file and question:
+    df = pd.read_excel(uploaded_file.read())
+    st.dataframe(df)
 
-        # Process the uploaded file and question.
-        document = uploaded_file.read().decode()
-        messages = [
-            {
-                "role": "user",
-                "content": f"Here's a document: {document} \n\n---\n\n {question}",
-            }
-        ]
+    # 向aipaas发起请求生成代码
+    url = "https://aipaas.dingtalk.alibaba-inc.com/bagualu/ai/generate";
 
-        # Generate an answer using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            stream=True,
-        )
 
-        # Stream the response to the app using `st.write_stream`.
-        st.write_stream(stream)
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': '*/*'
+    }
+
+    prompt = "基于pandas写一段python代码, 将下面这个dataframe表格隔行插入空行:" +  df.to_string()
+    print(prompt)
+
+
+    data = {
+        "productCode": "DING_DOC",
+        "corpId": "ding8196cd9a2b2405da24f2f5cc6abecb85",
+        "module": "OKR",
+        "serviceId": "qwen-plus",
+        "prompt": prompt,
+        "staffId": "270771",
+        "attachInfo":{ 
+        },
+        "monitorInfo":{   
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=data).json()
+
+    
+
+
+    # 目标URL
+    url = "http://1487434140287185.cn-zhangjiakou.pai-eas.aliyuncs.com/api/predict/sandbox_test/execute"
+
+    # 请求头部信息 (headers)
+    headers = {
+        'Authorization': 'ZDhlYTJlZDk3ZTRiNDY1MWYxYjgyN2RkOTAyZDBjYThlODI1ODAyMQ==',
+        'Content-Type': 'application/json; charset=utf-8', 
+        'API-KEY': 'pb-KzFcyCar93276BF5FDD6488ea5cF86d8BabA7d98RdoR2OIo', 
+        'KERNEL-ID': '75501414-472f-494c-92b1-0d947790c763'
+    }
+
+    # 请求体数据
+    data = {
+        "code": "import requests\nimport pandas as pd\nfrom io import BytesIO\nimport matplotlib.pyplot as plt\n\n# Group by '商品二级分类' and sum the '购买数量'\ncategory_counts = df.groupby('商品二级分类')['购买数量'].sum()\n\n# Create a bar chart\ncategory_counts.plot(kind='bar', color='skyblue')\n\n# Set title and labels\nplt.title('每个商品二级分类的购买数量分布')\nplt.xlabel('商品二级分类')\nplt.ylabel('购买数量')\n\nplt.show()"
+    }
+
+    # 发起POST请求
+    response = requests.post(url, headers=headers, json=data).json()
+    response = response["results"][0]
+    # 打印返回的响应内容
+    st.markdown(f"""<img src="data:png;base64,{response["data"]}" width='500' height='500' >""", True)
+    
+    # image_bytes = base64.b64decode(response["data"])
+
+    # st.write(image_bytes)
+
+
+
+
+
+    # # Generate an answer using the OpenAI API.
+    # stream = client.chat.completions.create(
+    #     model="gpt-3.5-turbo",
+    #     messages=messages,
+    #     stream=True,
+    # )
+
+    # # Stream the response to the app using `st.write_stream`.
+    # st.write_stream(stream)
